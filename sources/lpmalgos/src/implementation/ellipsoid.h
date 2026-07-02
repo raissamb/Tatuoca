@@ -1,5 +1,11 @@
 #pragma once
 
+// Adicione exatamente este bloco aqui se não estiver:
+#ifndef _MSC_VER
+#define Ui8
+#define Ui64 ULL
+#endif
+
 #include "machine.h"
 #include <Eigen/Dense>
 #include <vector>

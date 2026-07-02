@@ -95,7 +95,8 @@ std::vector<size_t> Neighborhood::find_neighbors(const Location &loc,
 
 size_t Neighborhood::nearest_neighbor(const Location &loc)
 {
-    auto neis = find_neighbors(loc, 1Ui64);
+    // Usando static_cast para garantir que o compilador chame a versão (loc, size_t)
+    auto neis = find_neighbors(loc, static_cast<size_t>(1));
     return neis[0];
 }
 

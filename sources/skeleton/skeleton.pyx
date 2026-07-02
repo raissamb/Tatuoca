@@ -2,7 +2,6 @@
 # cython: binding = False, initializedcheck = False
 # cython: boundscheck = False, wraparound = False
 # cython: language_level = 3, cdivision = True
-# distutils: extra_compile_args = /openmp
 # distutils: language = c++
 
 from numpy cimport ndarray, import_array
