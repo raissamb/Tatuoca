@@ -1,6 +1,7 @@
 # Image dir
 Imagens/
 Imagens2/
+Images/
 
 # Year books
 livros ano/
@@ -158,3 +159,26 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# ==========================================
+# Específicos do Projeto Tatuoca (C++ / Cython / CMake)
+# ==========================================
+
+# Ignora pastas build em qualquer subnível (lpmalgos, skeleton, etc.)
+**/build/
+build/
+
+# Resíduos gerados pelo CMake
+CMakeCache.txt
+CMakeFiles/
+**/CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Arquivos C++ e relatórios intermediários gerados pelo Cython
+sources/skeleton/skeleton.cpp
+sources/skeleton/skeleton.html
+*.cpp.o
+
+# Pasta de configurações locais do VS Code (evita subir caminhos pessoais)
+.vscode/

@@ -33,3 +33,11 @@ Utilizando técnicas avançadas de processamento de imagens e análise de dados,
 - Execute o comando "easycython.exe .\skeleton.pyx" no seu terminal. Isso irá compilar a extensão.
 - Recorte a extensão compilada da pasta /sources/skeleton para a pasta /skeleton.
 - Pronto! Agora podemos usar o código do Tatuoca!
+
+## Instalação para colaborador
+
+No terminal, clone o projeto com submódulos:
+
+```git clone --recursive [https://github.com/SEU_USUARIO/Tatuoca.git](https://github.com/SEU_USUARIO/Tatuoca.git)```  
+
+Entre na pasta e dê dois cliques no arquivo setup_windows.bat.Ele vai instalar o ambiente virtual e compilar os módulos automaticamente.
