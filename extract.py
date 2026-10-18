@@ -25,6 +25,10 @@ def bgr2gray(image: MatLike) -> MatLike:
   Returns:
     MatLike: Imagem em escala de cinza.
   """
+  #return cvtColor(image, COLOR_BGR2GRAY)
+  
+  if len(image.shape) == 2:
+      return image
   return cvtColor(image, COLOR_BGR2GRAY)
 
 def gray2bgr(image: MatLike) -> MatLike:
@@ -88,8 +92,12 @@ class ImageOpener:
         ".ras", ".tiff", ".tif", ".exr", ".hdr", ".pic")
       if extension not in valid_extensions:
         raise TypeError(f"{path!r} não é uma imagem!")
-      if image := imread(path) is None:
+      #if image := imread(path) is None:
+      #  raise TypeError(f"{path!r} não pôde ser aberto!")
+      image = imread(path, 0)  # Read directly as single-channel grayscale
+      if image is None:
         raise TypeError(f"{path!r} não pôde ser aberto!")
+      
       if isdir(name): rmtree(name)
       return name, bgr2gray(image)
 
@@ -126,11 +134,18 @@ def cut_image(image: MatLike, shape: Size) -> MatLike:
   """
   if len(shape) != 2:
     raise TypeError("shape sem tamanho 2!")
-  x1, x2, y1, y2 = 180, 2445, 305, 6095
-  cropped = image[x1:x2, y1:y2]
+  #x1, x2, y1, y2 = 180, 2445, 305, 6095 # original
+  #cropped = image[x1:x2, y1:y2] # original
+
+  # Typical slice format: cropped = image[y_min:y_max, x_min:x_max]
+  # Example relative crop (or verify pixel constants used in your repo):
+  h, w = image.shape[:2]
+  cropped = image[int(h * 0.15):int(h * 0.92), int(w * 0.05):int(w * 0.95)]
+  
   resized = resize(cropped, shape[::-1])
   print("cut_image terminado!")
   return resized
+
 
 def gauss_process(image: MatLike, size: int = 19, C: int = 10) -> MatLike:
   """
@@ -266,8 +281,15 @@ def save_lines(lines: NDArrays, directory: str, dtype: str, shape: Size):
   for i, subarray in enumerate(lines):
     image, (dim1, dim2) = black_image.copy(), subarray.T
     image[dim1, dim2] = WHITE
-    imwrite(fr"{lines_dir}\{dtype}{i}.png", image)
-    with open(fr"{lines_dir}\{dtype}{i}.txt", "w") as output:
+    # imwrite(fr"{lines_dir}\{dtype}{i}.png", image)
+    # with open(fr"{lines_dir}\{dtype}{i}.txt", "w") as output:
+    
+    # Change:
+    # imwrite(fr"{lines_dir}\{dtype}{i}.png", image)
+    # with open(fr"{lines_dir}\{dtype}{i}.txt", "w") as output:
+    # To:
+    imwrite(f"{lines_dir}/{dtype}{i}.png", image)
+    with open(f"{lines_dir}/{dtype}{i}.txt", "w") as output:
       output.write(f"Tamanho da imagem: {shape}\n")
       output.writelines(f"{elem}\n" for elem in subarray)
   print("save_lines terminado!")
@@ -302,12 +324,32 @@ def calculate_differences(curves: NDArrays, baselines: NDArrays, directory: str,
   differences_dir = f"{directory}/diffs"
   if not isdir(differences_dir): mkdir(differences_dir)
   curves_and_baselines = product(enumerate(curves), enumerate(baselines))
+
   for (curve_index, curve), (baseline_index, baseline) in curves_and_baselines:
     mean = baseline.T[0].mean(None, int)
     values = ((mean - curve.T[0]) * px_to_mm).round(1)
-    with open(fr"{differences_dir}\curve{curve_index}base{baseline_index}.txt", "w") as output:
-      output.writelines(f"({e1}, {mean}), {e2} - {value}\n" for (e1, e2), value in zip(curve, values))
+    #with open(fr"{differences_dir}\curve{curve_index}base{baseline_index}.txt", "w") as output: # old line
+
+    filepath = f"{differences_dir}/curve{curve_index}base{baseline_index}.csv"
+    with open(filepath, "w") as output:
+      # Descriptive header
+      output.write("row_trace,row_baseline_mean,column,distance_mm\n")
+      # Numerical CSV values
+      for (e1, e2), value in zip(curve, values):
+        output.write(f"{e1},{mean},{e2},{value:.1f}\n")
+
   print("calculate_differences terminado!")
+    
+
+    # This part is working
+  #   # Change:
+  #   # with open(fr"{differences_dir}\curve{curve_index}base{baseline_index}.txt", "w") as output:
+  #   # To:
+  #   with open(f"{differences_dir}/curve{curve_index}base{baseline_index}.txt", "w") as output:
+  #     output.writelines(f"({e1}, {mean}), {e2} - {value}\n" for (e1, e2), value in zip(curve, values))
+  # print("calculate_differences terminado!")
+
+
 
 def get_30min_values(image: MatLike, curves: NDArrays,
                      baselines: NDArrays, directory: str, px_to_mm: float):
@@ -360,7 +402,7 @@ def main():
   Função principal para processar as imagens.
   """
   shape, px_to_mm = magnetogram_image_scale(10)
-  for name, opened in ImageOpener("Imagens"):
+  for name, opened in ImageOpener("Images"):
     print(f"Imagem atual: {name}")
     if not isdir(name): mkdir(name)
 
