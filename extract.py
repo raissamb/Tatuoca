@@ -457,40 +457,247 @@ def magnetogram_image_scale(scale: int):
 
 ###
 
-def compute_time_marks(
+### The compute time marks produced errors when creating the time markings
+# def compute_time_marks(
+#     baseline_coords: np.ndarray,
+#     output_dir: Path,
+#     approach: int = 3,
+#     start_date: str = "1964-09-12",
+#     start_period: str = "morning",
+#     gap2_col: float = 995.0,
+#     second_to_last_gap_col: float = 4312.0,
+#     gap2_k: int = 2,
+#     second_to_last_k: int = 17,
+#     gap1_col: float = 776.5,
+#     gap1_k: int = 1
+# ):
+#     """
+#     Computes baseline hourly time marks using Approach 2 or Approach 3.
+
+#     Args:
+#         baseline_coords (np.ndarray): Array of [row, col] coordinates from baselines[0].
+#         output_dir (Path): Output directory for the magnetogram.
+#         approach (int): 2 for adjacent-gap rate, 3 for long-baseline span rate.
+#         start_date (str): Date string 'YYYY-MM-DD' representing the start date on paper.
+#         start_period (str): 'morning' (default, nominal start at 12 UT / 09h local)
+#                             or 'night' (nominal start at 00 UT / 21h local).
+#         gap2_col (float): Column of 2nd gap (start of gap or gap center).
+#         second_to_last_gap_col (float): Column of second-to-last gap.
+#         gap2_k (int): Hour index of 2nd gap relative to nominal start (default k=2).
+#         second_to_last_k (int): Hour index of second-to-last gap (default k=17).
+#         gap1_col (float): Column of 1st gap (used for Approach 2).
+#         gap1_k (int): Hour index of 1st gap (default k=1).
+#     """
+#     lines_dir = output_dir / "lines"
+#     lines_dir.mkdir(parents=True, exist_ok=True)
+
+#     # Sort baseline by column
+#     sorted_baseline = baseline_coords[np.argsort(baseline_coords[:, 1])]
+#     cols = sorted_baseline[:, 1]
+#     rows = sorted_baseline[:, 0]
+
+#     first_col, first_row = int(cols[0]), int(rows[0])
+#     last_col, last_row = int(cols[-1]), int(rows[-1])
+
+#     # Determine nominal start hour
+#     nominal_start_utc = 12 if start_period.lower() == "morning" else 0
+#     base_datetime = datetime.strptime(start_date, "%Y-%m-%d") + timedelta(hours=nominal_start_utc)
+
+#     # Calculate px_per_hour based on the chosen approach
+#     if approach == 2:
+#         # Rate from Gap 1 (k=1) to Gap 2 (k=2)
+#         px_per_hour = (gap2_col - gap1_col) / (gap2_k - gap1_k)
+#         anchor_col = gap1_col
+#         anchor_dt = base_datetime + timedelta(hours=gap1_k)
+#     elif approach == 3:
+#         # Rate across long baseline span: from Gap 2 to Second-to-last Gap
+#         px_per_hour = (second_to_last_gap_col - gap2_col) / (second_to_last_k - gap2_k)
+#         anchor_col = gap2_col
+#         anchor_dt = base_datetime + timedelta(hours=gap2_k)
+#     else:
+#         raise ValueError("Approach must be 2 or 3.")
+
+#     # Helper function to get row coordinate for a target column
+#     def get_matched_row(target_c):
+#         idx = np.argmin(np.abs(cols - target_c))
+#         return int(rows[idx])
+
+#     # Calculate timestamps for first and last pixel
+#     first_dt_utc = anchor_dt - timedelta(hours=(anchor_col - first_col) / px_per_hour)
+#     last_dt_utc = anchor_dt + timedelta(hours=(last_col - anchor_col) / px_per_hour)
+
+#     prefix = f"approach{approach}"
+#     csv_file = lines_dir / f"{prefix}_basel0_time_marks.csv"
+
+#     with csv_file.open("w", encoding="utf-8") as f:
+#         f.write(
+#             "date_utc,time_utc,date_local_utc3,time_local_utc3,"
+#             "row,column,marker_type,px_per_hour_rate\n"
+#         )
+
+#         def write_record(dt_utc, r, c, mtype):
+#             dt_loc = dt_utc - timedelta(hours=3)
+#             f.write(
+#                 f"{dt_utc.strftime('%Y-%m-%d')},{dt_utc.strftime('%H:%M:%S')},"
+#                 f"{dt_loc.strftime('%Y-%m-%d')},{dt_loc.strftime('%H:%M:%S')},"
+#                 f"{r},{c},{mtype},{px_per_hour_rate:.2f}\n"
+#             )
+
+#         px_per_hour_rate = px_per_hour
+
+#         # 1. First Pixel
+#         write_record(first_dt_utc, first_row, first_col, "first_pixel")
+
+#         # 2. Hourly time marks across the record (24 hours span)
+#         for k in range(1, 24):
+#             target_col = anchor_col + (k - (gap1_k if approach == 2 else gap2_k)) * px_per_hour
+#             if target_col < first_col or target_col > last_col:
+#                 continue
+
+#             matched_row = get_matched_row(target_col)
+#             mark_dt = base_datetime + timedelta(hours=k)
+#             write_record(mark_dt, matched_row, int(round(target_col)), "hourly_mark")
+
+#         # 3. Last Pixel
+#         write_record(last_dt_utc, last_row, last_col, "last_pixel")
+
+#     print(f"[{prefix.upper()}] Time marks saved to: {csv_file}")
+
+
+
+def detect_baseline_gaps(baseline_coords: np.ndarray, min_gap_width: int = 2) -> list[float]:
+    """
+    Automatically detects column centers of time-mark gaps directly from baseline coordinates.
+    """
+    # Extract unique sorted columns present in the baseline
+    unique_cols = np.sort(np.unique(baseline_coords[:, 1]))
+    diffs = np.diff(unique_cols)
+
+    # Locate missing column intervals
+    gap_indices = np.where(diffs >= min_gap_width)[0]
+    detected_gaps = []
+
+    for idx in gap_indices:
+        col_before = unique_cols[idx]
+        col_after = unique_cols[idx + 1]
+        gap_center = (col_before + col_after) / 2.0
+        detected_gaps.append(gap_center)
+
+    return detected_gaps
+
+
+# Version 2: using the min gap width examples
+# def compute_time_marks(
+#     baseline_coords: np.ndarray,
+#     output_dir: Path,
+#     approach: int = 3,
+#     start_date: str = "1964-09-12",
+#     start_period: str = "morning"
+# ):
+#     """
+#     Dynamically identifies baseline gaps and computes hourly marks without hardcoded coordinates.
+#     """
+#     lines_dir = output_dir / "lines"
+#     lines_dir.mkdir(parents=True, exist_ok=True)
+
+#     sorted_baseline = baseline_coords[np.argsort(baseline_coords[:, 1])]
+#     cols = sorted_baseline[:, 1]
+#     rows = sorted_baseline[:, 0]
+
+#     first_col, first_row = int(cols[0]), int(rows[0])
+#     last_col, last_row = int(cols[-1]), int(rows[-1])
+
+#     # 1. Automatically find all physical gaps along the baseline
+#     gaps = detect_baseline_gaps(baseline_coords, min_gap_width=2)
+    
+#     if len(gaps) < 2:
+#         raise ValueError(f"Fewer than 2 gaps detected along baseline in {output_dir.name}.")
+
+#     # Gap 0 is the 1st gap after start (13h UT)
+#     # Gap 1 is the 2nd gap (14h UT)
+#     gap1_col = gaps[0]
+#     gap2_col = gaps[1]
+#     second_to_last_gap_col = gaps[-2] if len(gaps) >= 4 else gaps[-1]
+    
+#     # 2. Determine time-rate based on chosen approach
+#     nominal_start_utc = 12 if start_period.lower() == "morning" else 0
+#     base_datetime = datetime.strptime(start_date, "%Y-%m-%d") + timedelta(hours=nominal_start_utc)
+
+#     if approach == 2:
+#         # Rate between first gap (13h UT, k=1) and second gap (14h UT, k=2)
+#         px_per_hour = (gap2_col - gap1_col) / 1.0
+#         anchor_col = gap1_col
+#         anchor_dt = base_datetime + timedelta(hours=1)
+#     elif approach == 3:
+#         # Rate across long span from Gap 2 to second-to-last gap
+#         # Estimate number of elapsed hours based on nominal variometer drum speed (~180-220 px/h)
+#         span_pixels = second_to_last_gap_col - gap2_col
+#         elapsed_hours = max(1, int(round(span_pixels / 180.0)))
+        
+#         px_per_hour = span_pixels / elapsed_hours
+#         anchor_col = gap2_col
+#         anchor_dt = base_datetime + timedelta(hours=2)
+#     else:
+#         raise ValueError("Approach must be 2 or 3.")
+
+#     def get_matched_row(target_c):
+#         idx = np.argmin(np.abs(cols - target_c))
+#         return int(rows[idx])
+
+#     first_dt_utc = anchor_dt - timedelta(hours=(anchor_col - first_col) / px_per_hour)
+#     last_dt_utc = anchor_dt + timedelta(hours=(last_col - anchor_col) / px_per_hour)
+
+#     prefix = f"approach{approach}"
+#     csv_file = lines_dir / f"{prefix}_basel0_time_marks.csv"
+
+#     with csv_file.open("w", encoding="utf-8") as f:
+#         f.write(
+#             "date_utc,time_utc,date_local_utc3,time_local_utc3,"
+#             "row,column,marker_type,px_per_hour_rate\n"
+#         )
+
+#         def write_record(dt_utc, r, c, mtype):
+#             dt_loc = dt_utc - timedelta(hours=3)
+#             f.write(
+#                 f"{dt_utc.strftime('%Y-%m-%d')},{dt_utc.strftime('%H:%M:%S')},"
+#                 f"{dt_loc.strftime('%Y-%m-%d')},{dt_loc.strftime('%H:%M:%S')},"
+#                 f"{r},{c},{mtype},{px_per_hour:.2f}\n"
+#             )
+
+#         # First pixel
+#         write_record(first_dt_utc, first_row, first_col, "first_pixel")
+
+#         # Hourly marks across 24h
+#         for k in range(1, 25):
+#             target_col = anchor_col + (k - (1 if approach == 2 else 2)) * px_per_hour
+#             if target_col < first_col or target_col > last_col:
+#                 continue
+
+#             matched_row = get_matched_row(target_col)
+#             mark_dt = base_datetime + timedelta(hours=k)
+#             write_record(mark_dt, matched_row, int(round(target_col)), "hourly_mark")
+
+#         # Last pixel
+#         write_record(last_dt_utc, last_row, last_col, "last_pixel")
+
+#     print(f"[{prefix.upper()}] Time marks auto-calibrated ({px_per_hour:.2f} px/h): {csv_file}")
+
+
+def compute_time_marks_robust(
     baseline_coords: np.ndarray,
     output_dir: Path,
-    approach: int = 3,
     start_date: str = "1964-09-12",
     start_period: str = "morning",
-    gap2_col: float = 995.0,
-    second_to_last_gap_col: float = 4312.0,
-    gap2_k: int = 2,
-    second_to_last_k: int = 17,
-    gap1_col: float = 776.5,
-    gap1_k: int = 1
+    search_window_px: int = 14
 ):
     """
-    Computes baseline hourly time marks using Approach 2 or Approach 3.
-
-    Args:
-        baseline_coords (np.ndarray): Array of [row, col] coordinates from baselines[0].
-        output_dir (Path): Output directory for the magnetogram.
-        approach (int): 2 for adjacent-gap rate, 3 for long-baseline span rate.
-        start_date (str): Date string 'YYYY-MM-DD' representing the start date on paper.
-        start_period (str): 'morning' (default, nominal start at 12 UT / 09h local)
-                            or 'night' (nominal start at 00 UT / 21h local).
-        gap2_col (float): Column of 2nd gap (start of gap or gap center).
-        second_to_last_gap_col (float): Column of second-to-last gap.
-        gap2_k (int): Hour index of 2nd gap relative to nominal start (default k=2).
-        second_to_last_k (int): Hour index of second-to-last gap (default k=17).
-        gap1_col (float): Column of 1st gap (used for Approach 2).
-        gap1_k (int): Hour index of 1st gap (default k=1).
+    Robust 24-hour baseline calibration:
+    1. Constrains total baseline length to 24.0h (Zero Cumulative Drift).
+    2. Uses guided local search around each expected hour to snap to physical gaps.
     """
     lines_dir = output_dir / "lines"
     lines_dir.mkdir(parents=True, exist_ok=True)
 
-    # Sort baseline by column
     sorted_baseline = baseline_coords[np.argsort(baseline_coords[:, 1])]
     cols = sorted_baseline[:, 1]
     rows = sorted_baseline[:, 0]
@@ -498,69 +705,87 @@ def compute_time_marks(
     first_col, first_row = int(cols[0]), int(rows[0])
     last_col, last_row = int(cols[-1]), int(rows[-1])
 
-    # Determine nominal start hour
+    # 1. Global Boundary Closure (Exact 24h baseline span)
+    total_span_px = last_col - first_col
+    global_rate = total_span_px / 24.0
+
     nominal_start_utc = 12 if start_period.lower() == "morning" else 0
     base_datetime = datetime.strptime(start_date, "%Y-%m-%d") + timedelta(hours=nominal_start_utc)
 
-    # Calculate px_per_hour based on the chosen approach
-    if approach == 2:
-        # Rate from Gap 1 (k=1) to Gap 2 (k=2)
-        px_per_hour = (gap2_col - gap1_col) / (gap2_k - gap1_k)
-        anchor_col = gap1_col
-        anchor_dt = base_datetime + timedelta(hours=gap1_k)
-    elif approach == 3:
-        # Rate across long baseline span: from Gap 2 to Second-to-last Gap
-        px_per_hour = (second_to_last_gap_col - gap2_col) / (second_to_last_k - gap2_k)
-        anchor_col = gap2_col
-        anchor_dt = base_datetime + timedelta(hours=gap2_k)
-    else:
-        raise ValueError("Approach must be 2 or 3.")
+    # Fast column lookup to detect physical gaps in the baseline
+    unique_cols = set(cols)
 
-    # Helper function to get row coordinate for a target column
     def get_matched_row(target_c):
         idx = np.argmin(np.abs(cols - target_c))
         return int(rows[idx])
 
-    # Calculate timestamps for first and last pixel
-    first_dt_utc = anchor_dt - timedelta(hours=(anchor_col - first_col) / px_per_hour)
-    last_dt_utc = anchor_dt + timedelta(hours=(last_col - anchor_col) / px_per_hour)
+    # 2. Guided Local Snapping for each hour (k = 0 to 24)
+    calibrated_marks = []
+    
+    for k in range(25):
+        expected_c = first_col + k * global_rate
+        
+        # Guided search in [expected_c - search_window_px, expected_c + search_window_px]
+        w_start = int(round(expected_c - search_window_px))
+        w_end = int(round(expected_c + search_window_px))
+        
+        # Check which columns in this window are missing from the baseline
+        missing_cols = [c for c in range(w_start, w_end + 1) if c not in unique_cols]
+        
+        # If there are contiguous missing columns (a true physical gap), snap to its center
+        if len(missing_cols) >= 2:
+            # Group into contiguous missing segments and find the closest to expected_c
+            gaps = []
+            current_gap = [missing_cols[0]]
+            for c in missing_cols[1:]:
+                if c == current_gap[-1] + 1:
+                    current_gap.append(c)
+                else:
+                    gaps.append(current_gap)
+                    current_gap = [c]
+            gaps.append(current_gap)
+            
+            # Select gap closest to expected position
+            best_gap = min(gaps, key=lambda g: abs(np.mean(g) - expected_c))
+            snapped_c = int(round(np.mean(best_gap)))
+            marker_type = "snapped_gap"
+        else:
+            snapped_c = int(round(expected_c))
+            marker_type = "interpolated"
 
-    prefix = f"approach{approach}"
-    csv_file = lines_dir / f"{prefix}_basel0_time_marks.csv"
+        # Special labels for endpoints
+        if k == 0:
+            snapped_c = first_col
+            marker_type = "first_pixel"
+        elif k == 24:
+            snapped_c = last_col
+            marker_type = "last_pixel"
 
+        matched_r = get_matched_row(snapped_c)
+        mark_dt_utc = base_datetime + timedelta(hours=k)
+        mark_dt_loc = mark_dt_utc - timedelta(hours=3)
+
+        calibrated_marks.append({
+            "date_utc": mark_dt_utc.strftime("%Y-%m-%d"),
+            "time_utc": mark_dt_utc.strftime("%H:%M:%S"),
+            "date_local_utc3": mark_dt_loc.strftime("%Y-%m-%d"),
+            "time_local_utc3": mark_dt_loc.strftime("%H:%M:%S"),
+            "row": matched_r,
+            "column": snapped_c,
+            "marker_type": marker_type,
+            "px_per_hour_rate": round(global_rate, 2)
+        })
+
+    # Save to approach3 CSV file
+    csv_file = lines_dir / "approach3_basel0_time_marks.csv"
     with csv_file.open("w", encoding="utf-8") as f:
-        f.write(
-            "date_utc,time_utc,date_local_utc3,time_local_utc3,"
-            "row,column,marker_type,px_per_hour_rate\n"
-        )
+        f.write("date_utc,time_utc,date_local_utc3,time_local_utc3,row,column,marker_type,px_per_hour_rate\n")
+        for m in calibrated_marks:
+            f.write(f"{m['date_utc']},{m['time_utc']},{m['date_local_utc3']},{m['time_local_utc3']},"
+                    f"{m['row']},{m['column']},{m['marker_type']},{m['px_per_hour_rate']}\n")
 
-        def write_record(dt_utc, r, c, mtype):
-            dt_loc = dt_utc - timedelta(hours=3)
-            f.write(
-                f"{dt_utc.strftime('%Y-%m-%d')},{dt_utc.strftime('%H:%M:%S')},"
-                f"{dt_loc.strftime('%Y-%m-%d')},{dt_loc.strftime('%H:%M:%S')},"
-                f"{r},{c},{mtype},{px_per_hour_rate:.2f}\n"
-            )
-
-        px_per_hour_rate = px_per_hour
-
-        # 1. First Pixel
-        write_record(first_dt_utc, first_row, first_col, "first_pixel")
-
-        # 2. Hourly time marks across the record (24 hours span)
-        for k in range(1, 24):
-            target_col = anchor_col + (k - (gap1_k if approach == 2 else gap2_k)) * px_per_hour
-            if target_col < first_col or target_col > last_col:
-                continue
-
-            matched_row = get_matched_row(target_col)
-            mark_dt = base_datetime + timedelta(hours=k)
-            write_record(mark_dt, matched_row, int(round(target_col)), "hourly_mark")
-
-        # 3. Last Pixel
-        write_record(last_dt_utc, last_row, last_col, "last_pixel")
-
-    print(f"[{prefix.upper()}] Time marks saved to: {csv_file}")
+    print(f"[ROBUST] Time marks calibrated with global closure ({global_rate:.2f} px/h): {csv_file}")
+    return csv_file
 
 
 def parse_magnetogram_date(file_path: str | Path) -> str:
@@ -1011,7 +1236,8 @@ def main():
       # ---------------------------------------------------------
       # TIME-MARK COMPUTATION & DOWNSTREAM HANDOFF EXPORT
       # ---------------------------------------------------------
-      if len(baselines) > 0:
+      # if len(baselines) > 0: # versao original
+      if len(baselines) > 0 and len(curves) > 0:
 
             # Currently working for H component
             base0 = baselines[0]  # baseline for H
@@ -1028,8 +1254,9 @@ def main():
             )
             print(f"Período detectado: {detected_period.upper()}")
 
-            # 1. Compute time marks for Approach 2 and Approach 3
+            # 1. Compute time marks for Approach 3
 
+            ###################################################
             # Generate Approach 2: using adjacent gaps (219.5 px/h) for 13th Sep 1964
             compute_time_marks(
                 baseline_coords=base0,
@@ -1049,6 +1276,18 @@ def main():
                 #start_period="morning"
                 start_period=detected_period
             )
+            ###################################################
+
+            # Robust time-mark calibration with closure
+            csv_app3 = compute_time_marks_robust(
+                baseline_coords=base0,
+                output_dir=output_dir,
+                start_date=current_date,
+                start_period=detected_period,
+                search_window_px=14
+            )
+
+
 
             csv_app2 = output_dir / "lines" / "approach2_basel0_time_marks.csv"
             csv_app3 = output_dir / "lines" / "approach3_basel0_time_marks.csv"
