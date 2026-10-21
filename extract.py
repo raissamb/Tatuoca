@@ -955,6 +955,8 @@ def export_hourly_trace_matches(
         })
 
     df_out = pd.DataFrame(records)
+    df_out["datetime_utc"] = pd.to_datetime(df_out["date_utc"] + " " + df_out["time_utc"])
+    df_out["datetime_local_utc3"] = pd.to_datetime(df_out["date_local_utc3"] + " " + df_out["time_local_utc3"])
     df_out.to_csv(output_csv, index=False)
     print(f"Tabela de alturas horárias exportada com sucesso: {output_csv}")
 
