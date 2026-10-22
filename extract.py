@@ -1254,30 +1254,6 @@ def main():
             )
             print(f"Período detectado: {detected_period.upper()}")
 
-            # 1. Compute time marks for Approach 3
-
-            ###################################################
-            # Generate Approach 2: using adjacent gaps (219.5 px/h) for 13th Sep 1964
-            compute_time_marks(
-                baseline_coords=base0,
-                output_dir=output_dir,
-                approach=2,
-                start_date=current_date,
-                #start_period="morning"  # Default 'morning' (12h UT / 09h local)
-                start_period=detected_period
-            )
-
-            # Generate Approach 3: using long baseline span (~221.1 px/h) for 13th Sep 1964
-            compute_time_marks(
-                baseline_coords=base0,
-                output_dir=output_dir,
-                approach=3,
-                start_date=current_date,
-                #start_period="morning"
-                start_period=detected_period
-            )
-            ###################################################
-
             # Robust time-mark calibration with closure
             csv_app3 = compute_time_marks_robust(
                 baseline_coords=base0,
@@ -1287,21 +1263,29 @@ def main():
                 search_window_px=14
             )
 
-
-
-            csv_app2 = output_dir / "lines" / "approach2_basel0_time_marks.csv"
-            csv_app3 = output_dir / "lines" / "approach3_basel0_time_marks.csv"
-
-            # 2. Export hourly matched coordinates and heights (mm)
-            export_hourly_trace_matches(
-                time_marks_csv=csv_app2,
-                curve_coords=curve0,
-                baseline_coords=base0,
-                output_csv=output_dir / "hourly_H_deviations_approach2.csv",
-                px_to_mm=px_to_mm,
-                component_name="H"
+            # Visual overlay on cropped ROI
+            overlay_approach_time_marks(
+                base_image=cropped_image,
+                time_marks_csv=csv_app3,
+                output_path=output_dir / "approach3_timemarks_cutted.png",
+                line_color=(255, 0, 0)  # Blue
             )
 
+            overlay_approach_time_marks(
+                base_image=canny_image,
+                time_marks_csv=csv_app3,
+                output_path=output_dir / "approach3_timemarks_canny.png",
+                line_color=(255, 0, 0)  # Blue
+            )
+
+            overlay_approach_time_marks(
+                            base_image=white_canny_image,
+                            time_marks_csv=csv_app3,
+                            output_path=output_dir / "approach3_timemarks_white_canny.png",
+                            line_color=(255, 0, 0)  # Blue
+                        )
+
+            # Export hourly height deviations
             export_hourly_trace_matches(
                 time_marks_csv=csv_app3,
                 curve_coords=curve0,
@@ -1311,45 +1295,7 @@ def main():
                 component_name="H"
             )
 
-            # 3. Visual overlays: Generate individual visual overlays for time marks approaches (opened or cropped)
-
-            #### Approach 2
-            overlay_approach_time_marks(
-                base_image=cropped_image,
-                time_marks_csv=csv_app2,
-                output_path=output_dir / "approach2_timemarks.png",
-                line_color=(0, 0, 255)  # Red
-            )
-
-            overlay_approach_time_marks(
-                base_image=white_canny_image,
-                time_marks_csv=csv_app2,
-                output_path=output_dir / "approach2_timemarks_canny.png",
-                line_color=(0, 0, 255)
-            )
-
-            #### Approach 3
-            overlay_approach_time_marks(
-                base_image=cropped_image,
-                time_marks_csv=csv_app3,
-                output_path=output_dir / "approach3_timemarks.png",
-                line_color=(255, 0, 0)  # Blue
-            )
-
-            overlay_approach_time_marks(
-              base_image=white_canny_image,
-              time_marks_csv=csv_app3,
-              output_path=output_dir / "approach3_timemarks_canny.png",
-              line_color=(255, 0, 0)  # Blue
-            )
-
-            # 4. Generate side-by-side / overlay comparison image
-            overlay_approach_comparison(
-                base_image=cropped_image,
-                csv_app2=csv_app2,
-                csv_app3=csv_app3,
-                output_path=output_dir / "comparison_approaches_2_and_3_cutted_img.png"
-            )
+            #csv_app3 = output_dir / "lines" / "approach3_basel0_time_marks.csv"
 
 
       _30min = get_30min_values(canny_image, curves, baselines, output_dir, px_to_mm)
