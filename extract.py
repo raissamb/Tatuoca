@@ -1197,7 +1197,10 @@ def main():
   Função principal para processar as imagens.
   """
   shape, px_to_mm = magnetogram_image_scale(10)
-  images_dir = Path("Images")
+  dataset = "gray_300"
+  images_dir = Path(f"Images/{dataset}")
+  
+  #images_dir = Path("Images/gray_300")
 
   for output_dir, opened in ImageOpener(images_dir):
       print(f"Processando imagem: {output_dir.name}")
