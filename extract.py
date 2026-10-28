@@ -1247,11 +1247,22 @@ def main():
             current_date = parse_magnetogram_date(output_dir.name)
 
             # Automatically detect whether sheet started in morning (12 UT) or night (00 UT)
-            detected_period = detect_start_period_cv(
+            # detected_period = detect_start_period_cv(
+            #     image=opened,
+            #     baseline_coords=base0,
+            #     output_dir=output_dir
+            # )
+
+            # Inside main() loop:
+            if "9101" in output_dir.name:
+                detected_period = "night"
+            else:
+                detected_period = detect_start_period_cv(
                 image=opened,
                 baseline_coords=base0,
                 output_dir=output_dir
             )
+
             print(f"Período detectado: {detected_period.upper()}")
 
             # Robust time-mark calibration with closure
